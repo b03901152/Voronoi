@@ -10,35 +10,18 @@ void display(void);
 void onEF(int n);
 void reshape(int width, int height);
 
-double w = 100;
+double w = 1000;
 
 int main(int argc, char **argv) {
 
   srand(time(NULL));
-
-  for (int i = 0; i < 4; i++) {
-
-    //    ver->push_back(new VPoint((int)(w * (double)rand() /
-    //    (double)RAND_MAX),
-    //                              (int)(w * (double)rand() /
-    //                              (double)RAND_MAX)));
-    //    cerr << "point(" << ver->back()->x << ", " << ver->back()->y << ")" <<
-    //    endl;
-    //
-    //    dir->push_back(
-    //        new VPoint(((double)rand() / (double)RAND_MAX - 0.5) > 0 ? 1 : -1,
-    //                   ((double)rand() / (double)RAND_MAX - 0.5) > 0 ? 1 :
-    //                   -1));
-  }
-
-  // ver->push_back(new VPoint(18, 28));
 
   std::cout << "voronois done!\n";
 
   glutInit(&argc, argv);            // Initialize GLUT
   glutInitDisplayMode(GLUT_SINGLE); // Set up a basic display buffer (only
                                     // single buffered for now)
-  glutInitWindowSize(600, 600);     // Set the width and height of the window
+  glutInitWindowSize(w / 2, w / 2); // Set the width and height of the window
   glutInitWindowPosition(0, 0);     // Set the position of the window
   glutCreateWindow(
       "You�re first OpenGL Window"); // Set the title for the window
@@ -60,16 +43,13 @@ int main(int argc, char **argv) {
 }
 
 void drawVoronoi() {
-  double l = 0, b = 0, r = 1000, t = 1000;
-  double w = (r - b) / 2, h = (t - b) / 2;
-  vector<int> vx;
-  vector<int> vy;
+  double l = 0, b = 0, r = w, t = w;
+  vector<int> vx = {0, 100, 000, 100};
+  vector<int> vy = {0, 100, 100, 000};
 
-  for (int i = 0; i < 100; ++i) {
-    vx.push_back(w * abs(rand()) / RAND_MAX);
-    vx.back() *= 2;
-    vy.push_back(h * abs(rand()) / RAND_MAX);
-    vy.back() *= 2;
+  for (int i = 0; i < 30; ++i) {
+    vx.push_back((double)w * abs(rand()) / RAND_MAX);
+    vy.push_back((double)w * abs(rand()) / RAND_MAX);
   }
 
   Voronoi vor(vx, vy, l, b, r, t);
@@ -80,25 +60,29 @@ void drawVoronoi() {
     x /= w;
     x -= 1;
     double y = vy[i];
-    y /= h;
+    y /= w;
     y -= 1;
-    glVertex2f(x - 1 / w, y - 1 / w);
-    glVertex2f(x + 1 / w, y - 1 / w);
-    glVertex2f(x + 1 / w, y + 1 / w);
-    glVertex2f(x - 1 / w, y + 1 / w);
+    glVertex2f(x - 5 / w, y - 5 / w);
+    glVertex2f(x + 5 / w, y - 5 / w);
+    glVertex2f(x + 5 / w, y + 5 / w);
+    glVertex2f(x - 5 / w, y + 5 / w);
   }
   glEnd();
 
   glBegin(GL_LINES);
-  for (Edge &e : vor.getEdges()) {
+  for (Edge e : vor.getEdges()) {
     double x1 = e.s.x;
     double y1 = e.s.y;
     double x2 = e.e.x;
     double y2 = e.e.y;
+    assert(x1 >= 0 && x1 <= w);
+    assert(y1 >= 0 && y1 <= w);
+    assert(x2 >= 0 && x2 <= w);
+    assert(y2 >= 0 && y2 <= w);
     x1 /= w;
-    y1 /= h;
+    y1 /= w;
     x2 /= w;
-    y2 /= h;
+    y2 /= w;
     x1 -= 1;
     y1 -= 1;
     x2 -= 1;

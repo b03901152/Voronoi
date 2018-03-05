@@ -59,14 +59,14 @@ struct Point {
   }
 
   void Linf_to_L1() {
-    int x_new = (x - y) / 2;
-    int y_new = (x + y) / 2;
+    int x_new = (x - y) / 4; // for even number request
+    int y_new = (x + y) / 4; // for even number request
     x = x_new;
     y = y_new;
   }
   void L1_to_Linf() {
-    int u = x + y;
-    int v = y - x;
+    int u = (x + y) * 2; // for even number request
+    int v = (y - x) * 2; // for even number request
     x = u;
     y = v;
   }
@@ -119,19 +119,10 @@ struct Line {
 };
 
 struct Site {
-  Site(Point point, int id) : point(point), id(id) {}
-  // void Linf_to_L1() {
-  //  int x = (point.x - point.y) / 2;
-  //  int y = (point.x + point.y) / 2;
-  //  point.x = x;
-  //  point.y = y;
-  //}
-  // void L1_to_Linf() {
-  //  int u = point.x + point.y;
-  //  int v = point.y - point.x;
-  //  point.x = u;
-  //  point.y = v;
-  //}
+  Site(Point point, int id) : point(point), id(id) {
+    assert(point.x % 2 == 0);
+    assert(point.y % 2 == 0);
+  }
 
   Point point;
   const int id;
@@ -180,12 +171,19 @@ struct Edge {
   void checkSlop() {
     assert(s.x == e.x || s.y == e.y || s.mxDist(e) == s.myDist(e));
   }
+  int length() { return s.dist(e); }
   bool bHor() { return s.y == e.y; }
   bool bVer() { return s.x == e.x; }
   void check() const {
     checkPoint(s);
     checkPoint(e);
   }
+  int topId() const { return top.id; }
+  int bottomId() const { return bottom.id; }
+  int xl() const { return min(s.x, e.x); }
+  int xh() const { return max(s.x, e.x); }
+  int yl() const { return min(s.y, e.y); }
+  int yh() const { return max(s.y, e.y); }
 
   friend ostream &operator<<(ostream &ofs, const Edge &e) {
     ofs << e.s << " to " << e.e << " with site " << e.top.point << " site "
@@ -221,14 +219,12 @@ public:
     vSites.reserve(vX.size());
 
     for (unsigned i = 0; i < vX.size(); ++i) {
-      assert(vX[i] % 2 == 0);
-      assert(vY[i] % 2 == 0);
       Point p(vX[i], vY[i]);
       if (bL1)
         p.L1_to_Linf();
       vSites.emplace_back(p, i);
     }
-    int mDist = max(bdT - bdB, bdR - bdL) * 5;
+    int mDist = max(bdT - bdB, bdR - bdL) * 20;
     vSites.emplace_back(Point(bdL - mDist, bdB - mDist),
                         vSites.size()); // dummy
     vSites.emplace_back(Point(bdL - mDist, bdT + mDist),
@@ -300,9 +296,9 @@ public:
 
   vector<Edge> getEdges() {
     if (bL1) {
-      vector<Edge> v = vEdges;
+      vector<Edge> v;
       Point m((bdL + bdR) / 2, (bdB + bdR) / 2);
-      for (Edge &e : v) {
+      for (Edge e : vEdges) {
         e.s.Linf_to_L1();
         e.e.Linf_to_L1();
         int ds = outDist(e.s);
@@ -319,6 +315,12 @@ public:
           e.s.toward(m, ds);
           e.e.toward(m, de);
         }
+        if (e.length())
+          v.push_back(e);
+        // cerr << "bdL " << bdL << endl;
+        // cerr << "bdR " << bdR << endl;
+        // cerr << "bdB " << bdB << endl;
+        // cerr << "bdT " << bdT << endl;
         assert(bdL <= e.s.x && e.s.x <= bdR);
         assert(bdL <= e.e.x && e.e.x <= bdR);
         assert(bdB <= e.s.y && e.s.y <= bdT);
@@ -326,6 +328,7 @@ public:
       }
       return v;
     }
+    assert(0);
     return vEdges;
   }
 
@@ -404,6 +407,7 @@ public:
       if (!e.exist || e.top.id == -1 || e.bottom.id == -1)
         continue;
       // cerr << "tran edge :" << e << endl;
+
       e.check();
 
       Point sp;
@@ -565,9 +569,9 @@ public:
   set<Record> X;
   set<Frontier> Y;
   vector<Edge> vEdges;
-  int bdL;
-  int bdB;
-  int bdR; // boundary right
-  int bdT;
+  const int bdL;
+  const int bdB;
+  const int bdR; // boundary right
+  const int bdT;
   bool bL1;
 };
