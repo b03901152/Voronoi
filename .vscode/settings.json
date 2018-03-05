@@ -7,6 +7,8 @@
         "initializer_list": "cpp",
         "utility": "cpp",
         "cmath": "cpp",
-        "cstdlib": "cpp"
+        "cstdlib": "cpp",
+        "iosfwd": "cpp",
+        "*.tcc": "cpp"
     }
 }

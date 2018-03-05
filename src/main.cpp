@@ -15,15 +15,18 @@ double w = 1000;
 int main(int argc, char **argv) {
 
   srand(time(NULL));
+  using namespace std;
+  //
   // double l = -w, b = -w, r = w, t = w;
   // vector<int> vx;
   // vector<int> vy;
   //
-  // for (int i = 0; i < 1000000; ++i) {
+  // for (int i = 0; i < 10000; ++i) {
   //  vx.push_back((double)w * abs(rand()) / RAND_MAX);
   //  vy.push_back((double)w * abs(rand()) / RAND_MAX);
   //}
-  // Voronoi vor(vx, vy, l, b, r, t);
+  // voronoi::Voronoi vor(vx, vy, l, b, r, t);
+  // vor.checkVoronoi();
   // return 0;
   //
   // std::cout << "voronois done!\n";
@@ -53,26 +56,26 @@ int main(int argc, char **argv) {
 }
 
 void drawVoronoi() {
+  using namespace std;
+
   double l = -w, b = -w, r = w, t = w;
   vector<int> vx;
   vector<int> vy;
 
   for (int i = 0; i < 100; ++i) {
-    vx.push_back(w * ((double)rand() / RAND_MAX - 0.5) * 2);
-    vy.push_back(w * ((double)rand() / RAND_MAX - 0.5) * 2);
+    vx.push_back(int(w * ((double)rand() / RAND_MAX - 0.5)) * 2);
+    vy.push_back(int(w * ((double)rand() / RAND_MAX - 0.5)) * 2);
     // cerr << vx[i] << " " << vy[i] << endl;
   }
 
-  Voronoi vor(vx, vy, l, b, r, t);
+  voronoi::Voronoi vor(vx, vy, l, b, r, t);
 
   glBegin(GL_QUADS);
   for (unsigned i = 0; i < vx.size(); ++i) {
     double x = vx[i];
     x /= w;
-    // x -= 0.5;
     double y = vy[i];
     y /= w;
-    // y -= 0.5;
     glVertex2f(x - 5 / w, y - 5 / w);
     glVertex2f(x + 5 / w, y - 5 / w);
     glVertex2f(x + 5 / w, y + 5 / w);
@@ -81,23 +84,20 @@ void drawVoronoi() {
   glEnd();
 
   glBegin(GL_LINES);
-  for (Edge e : vor.getEdges()) {
-    double x1 = e.s.x;
-    double y1 = e.s.y;
-    double x2 = e.e.x;
-    double y2 = e.e.y;
+  for (voronoi::FEdge e : vor.getEdges()) {
+    e.p1().x();
+    float x1 = e.p1().x();
+    float y1 = e.p1().y();
+    float x2 = e.p2().x();
+    float y2 = e.p2().y();
     assert(x1 >= l && x1 <= r);
     assert(y1 >= l && y1 <= r);
     assert(x2 >= l && x2 <= r);
     assert(y2 >= l && y2 <= r);
     x1 /= w;
-    // x1 -= 0.5;
     y1 /= w;
-    // y1 -= 0.5;
     x2 /= w;
-    // x2 -= 0.5;
     y2 /= w;
-    // y2 -= 0.5;
     glVertex2f(x1, y1);
     glVertex2f(x2, y2);
   }

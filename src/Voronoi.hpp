@@ -1,15 +1,70 @@
 #include <algorithm>
 #include <cassert>
 #include <climits>
+#include <cmath>
+#include <float.h>
 #include <iostream>
 #include <map>
 #include <queue>
 #include <set>
+#include <stack>
 #include <vector>
+namespace voronoi {
+
 using namespace std;
 
 #define INTMAX INT_MAX / 10
 #define INTMIN INT_MIN / 10
+
+class FPoint {
+public:
+  FPoint(const FPoint &p) : _x(p._x), _y(p._y) {}
+  FPoint(float x, float y) : _x(x), _y(y) {}
+  float x() const { return _x; }
+  float y() const { return _y; }
+
+private:
+  float _x;
+  float _y;
+};
+
+class FEdge {
+public:
+  FEdge(const FPoint &p1, const FPoint &p2, int topSite, int bottomSite)
+      : _p1(p1), _p2(p2), topSite(topSite), bottomSite(bottomSite) {}
+
+  const FPoint &p1() const { return _p1; }
+  const FPoint &p2() const { return _p2; }
+  const FPoint &leftPoint() const { return _p1.x() < _p2.x() ? _p1 : _p2; }
+  const FPoint &rightPoint() const { return _p1.x() < _p2.x() ? _p2 : _p1; }
+  float xl() const { return min(_p1.x(), _p2.x()); }
+  float xh() const { return max(_p1.x(), _p2.x()); }
+  float yl() const { return min(_p1.y(), _p2.y()); }
+  float yh() const { return max(_p1.y(), _p2.y()); }
+
+  bool bHor() const { return abs(_p1.y() - _p2.y()) < 0.0001; }
+  bool bVer() const { return abs(_p1.x() - _p2.x()) < 0.0001; }
+  float slope() const {
+    assert(!bVer());
+    return float(_p1.y() - _p2.y()) / (_p1.x() - _p2.x());
+  }
+  float b() const {
+    assert(_p1.y() - _p1.x() * slope() == _p2.y() - _p2.x() * slope());
+    return _p1.y() - _p1.x() * slope();
+  }
+  float getY(int x) const {
+    assert(!bVer());
+    return x * slope() + b();
+  }
+  int topSiteId() const { return topSite; }
+  int bottomSiteId() const { return bottomSite; }
+
+private:
+  const FPoint _p1;
+  const FPoint _p2;
+  const int topSite;    // or left
+  const int bottomSite; // or right
+};
 
 struct Point {
   Point(int x, int y) : x(x), y(y) {}
@@ -64,11 +119,15 @@ struct Point {
   }
 
   void Linf_to_L1() {
-    int x_new = (x - y) / 4; // for even number request
-    int y_new = (x + y) / 4; // for even number request
+    assert((x - y) % 2 == 0);
+    assert((x + y) % 2 == 0);
+    int x_new = (x - y) / 2; // for even number request, divide 2 when transform
+                             // to FPoint for odd number
+    int y_new = (x + y) / 2;
     x = x_new;
     y = y_new;
   }
+
   void L1_to_Linf() {
     int u = (x + y) * 2; // for even number request
     int v = (y - x) * 2; // for even number request
@@ -209,17 +268,14 @@ class Voronoi {
 public:
   Voronoi(vector<int> vX, vector<int> vY, int bdL, int bdB, int bdR, int bdT,
           bool bL1 = true)
-      : sX(INTMIN), bdL(bdL), bdB(bdB), bdR(bdR), bdT(bdT), bL1(bL1) {
+      : sX(INTMIN), bdL(bdL * 2), bdB(bdB * 2), bdR(bdR * 2), bdT(bdT * 2),
+        bL1(bL1) {
     vSites.reserve(vX.size());
 
     for (unsigned i = 0; i < vX.size(); ++i) {
       assert(bdL <= vX[i] && vX[i] <= bdR);
       assert(bdB <= vY[i] && vY[i] <= bdT);
       Point p(vX[i], vY[i]);
-      Point t = p;
-      t.L1_to_Linf();
-      t.Linf_to_L1();
-      assert(t == p);
       if (bL1)
         p.L1_to_Linf();
       vSites.emplace_back(p, i);
@@ -294,11 +350,12 @@ public:
     transEdge();
   }
 
-  vector<Edge> getEdges() {
+  vector<FEdge> getEdges() {
     if (bL1) {
-      vector<Edge> v;
+      vector<FEdge> v;
       Point m((bdL + bdR) / 2, (bdB + bdR) / 2);
       for (Edge e : vEdges) {
+        e.checkSlop();
         e.s.Linf_to_L1();
         e.e.Linf_to_L1();
         Line l(e.s, e.e);
@@ -357,8 +414,11 @@ public:
             e.e.y += l.dir() ? d : -d;
           }
         }
-        if (e.length())
-          v.push_back(e);
+        if (e.length()) {
+          FPoint p1(float(e.s.x) / 2, float(e.s.y) / 2);
+          FPoint p2(float(e.e.x) / 2, float(e.e.y) / 2);
+          v.emplace_back(p1, p2, e.top.id, e.bottom.id);
+        }
         // cerr << "bdL " << bdL << endl;
         // cerr << "bdR " << bdR << endl;
         // cerr << "bdB " << bdB << endl;
@@ -370,8 +430,6 @@ public:
       }
       return v;
     }
-    assert(0);
-    return vEdges;
   }
 
   void endEdge(const Frontier &f) {
@@ -489,18 +547,21 @@ public:
         // cerr << "final add edge " << vEdges.back() << endl;
         vEdges.emplace_back(e.s, sp, e.top, e.bottom);
         vEdges.back().checkSlop();
+        vEdges.back().check();
       }
 
       if (sp.dist(ep) != 0) {
 
         vEdges.emplace_back(sp, ep, e.top, e.bottom);
         vEdges.back().checkSlop();
+        vEdges.back().check();
         // cerr << "final add edge " << vEdges.back() << endl;
       }
 
       if (ep.dist(e.e) != 0) {
         vEdges.emplace_back(ep, e.e, e.top, e.bottom);
         vEdges.back().checkSlop();
+        vEdges.back().check();
         // cerr << "final add edge " << vEdges.back() << endl;
       }
     }
@@ -597,6 +658,103 @@ public:
     vEdges.emplace_back(start, ts, bs);
     bf.top = tf.bottom = vEdges.size() - 1;
   }
+  void checkVoronoi() {
+    int counter = 0;
+    int w = 1000;
+    int n = 1000;
+    srand(0);
+    while (true) {
+      cerr << "counter " << counter++ << endl;
+      vector<int> vx, vy, mx, my;
+      vector<Point> sites;
+      for (int i = 0; i < n; ++i) {
+        vx.push_back(rand() % (w + 1));
+        vy.push_back(rand() % (w + 1));
+        sites.emplace_back(vx.back(), vy.back());
+      }
+
+      Voronoi vor(vx, vy, 0, 0, w, w);
+      vector<vector<int>> minDist(w + 1);
+      for (int i = 0; i < w + 1; ++i) {
+        minDist[i].resize(w + 1, INT_MAX);
+        for (int j = 0; j < w + 1; ++j) {
+          Point p(i, j);
+          for (int s = 0; s < n; ++s)
+            minDist[i][j] = min(abs(p.x - sites[s].x) + abs(p.y - sites[s].y),
+                                minDist[i][j]);
+        }
+      }
+      struct P {
+        P() : id(-1) {}
+        P(int x, float y, int id, bool atUpper)
+            : x(x), y(y), id(id), atUpper(atUpper) {}
+        bool operator==(const P &p) const {
+          return x == p.x && abs(y - p.y < 0.001) && id == p.id &&
+                 atUpper == p.atUpper;
+        }
+        int x;
+        float y;
+        int id;
+        bool atUpper;
+      };
+
+      struct PComp {
+        bool operator()(const P &i, const P &j) const {
+          if (i.id == j.id) {
+            if (abs(i.y - j.y) < 0.0001)
+              return i.atUpper < j.atUpper;
+            return i.y < j.y;
+          }
+          return i.id < j.id;
+        }
+      };
+
+      vector<multiset<P, PComp>> vSets(w + 1);
+      for (const FEdge &e : vor.getEdges()) {
+        // cerr << "edge from " << e.p1().x() << " " << e.p1().y() << " to "
+        //     << e.p2().x() << " " << e.p2().y() << endl;
+        for (int x = ceil(e.xl()); x <= floor(e.xh()); ++x) {
+          assert(x >= 0 && x <= w);
+          assert(x < vSets.size());
+          if (e.bVer()) {
+            vSets[x].emplace(x, e.yh(), e.topSiteId(), true);
+            vSets[x].emplace(x, e.yl(), e.topSiteId(), false);
+
+            vSets[x].emplace(x, e.yh(), e.bottomSiteId(), true);
+            vSets[x].emplace(x, e.yl(), e.bottomSiteId(), false);
+          } else {
+            vSets[x].emplace(x, e.getY(x), e.topSiteId(), false);
+            vSets[x].emplace(x, e.getY(x), e.bottomSiteId(), true);
+          }
+        }
+      }
+
+      for (const multiset<P, PComp> &s : vSets) {
+        P pLow, pHigh;
+        for (const P &p : s) {
+          pHigh = p;
+          if (pHigh.id == pLow.id) {
+            assert(pHigh.y >= pLow.y);
+            assert(pHigh.atUpper);
+            assert(!pLow.atUpper);
+            for (int y = ceil(pLow.y); y <= floor(pHigh.y); ++y) {
+              assert(p.id < sites.size());
+              if (minDist[p.x][y] !=
+                  abs(p.x - sites[p.id].x) + abs(y - sites[p.id].y)) {
+                cerr << "check point " << p.x << " " << y << endl;
+                cerr << "site " << sites[p.id] << endl;
+                cerr << "minDist[p.x][y] " << minDist[p.x][y] << endl;
+                cerr << "P " << p.x << " " << p.y << " " << p.id << " "
+                     << p.atUpper << endl;
+              }
+              assert(minDist[p.x][y] ==
+                     abs(p.x - sites[p.id].x) + abs(y - sites[p.id].y));
+            }
+          }
+        }
+      }
+    }
+  }
 
   int outDist(const Point &p) const {
     int d = 0;
@@ -609,6 +767,7 @@ public:
 
   int sX;
   vector<Site> vSites;
+  vector<Point> vPoints; // origin position
   set<Record> X;
   set<Frontier> Y;
   vector<Edge> vEdges;
@@ -617,4 +776,5 @@ public:
   const int bdR; // boundary right
   const int bdT;
   bool bL1;
-};
+}; // namespace voronoi
+} // namespace voronoi
