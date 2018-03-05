@@ -36,8 +36,13 @@ struct Point {
   int mxDist(const Point &i) const { return abs(i.x - x); }
   int myDist(const Point &i) const { return abs(i.y - y); }
   void toward(const Point &obj, int dist) {
-    assert(mxDist(obj) >= dist);
-    assert(myDist(obj) >= dist);
+    if (mxDist(obj) < dist || myDist(obj) < dist) {
+      cerr << "myDist(obj) " << myDist(obj) << endl;
+      cerr << "mxDist(obj) " << mxDist(obj) << endl;
+      cerr << "dist " << dist << endl;
+      assert(mxDist(obj) >= dist);
+      assert(myDist(obj) >= dist);
+    }
     x += obj.x < x ? -dist : dist;
     y += obj.y < y ? -dist : dist;
   }
@@ -76,11 +81,7 @@ struct Point {
 };
 
 struct Line {
-  Line(Point p1, Point p2) : p1(p1), p2(p2) {
-    if (p1 == p2) {
-      // assert(!(p1 == p2));
-    }
-  }
+  Line(Point p1, Point p2) : p1(p1), p2(p2) {}
   bool bVer() { return p1.x == p2.x; }
   bool bHor() { return p1.y == p2.y; }
   int length() { return p1.dist(p2); }
@@ -159,13 +160,6 @@ struct Edge {
   void checkPoint(const Point &p) const {
     int dt = top.point.dist(p) + top.point.dist(p);
     int db = bottom.point.dist(p) + bottom.point.dist(p);
-    // if (dt != db) {
-    //  cerr << "top.point " << top.point << endl;
-    //  cerr << "bottom.point " << bottom.point << endl;
-    //  cerr << "p " << p << endl;
-    //  cerr << "dt " << dt << endl;
-    //  cerr << "db " << db << endl;
-    //}
     assert(dt == db);
   }
   void checkSlop() {
@@ -186,8 +180,8 @@ struct Edge {
   int yh() const { return max(s.y, e.y); }
 
   friend ostream &operator<<(ostream &ofs, const Edge &e) {
-    ofs << e.s << " to " << e.e << " with site " << e.top.point << " site "
-        << e.bottom.point;
+    ofs << e.s << " to " << e.e << " with site " << e.top.id << " site "
+        << e.bottom.id;
     return ofs;
   }
   Point s;           // start
@@ -219,12 +213,18 @@ public:
     vSites.reserve(vX.size());
 
     for (unsigned i = 0; i < vX.size(); ++i) {
+      assert(bdL <= vX[i] && vX[i] <= bdR);
+      assert(bdB <= vY[i] && vY[i] <= bdT);
       Point p(vX[i], vY[i]);
+      Point t = p;
+      t.L1_to_Linf();
+      t.Linf_to_L1();
+      assert(t == p);
       if (bL1)
         p.L1_to_Linf();
       vSites.emplace_back(p, i);
     }
-    int mDist = max(bdT - bdB, bdR - bdL) * 20;
+    int mDist = max(bdT - bdB, bdR - bdL) * 100;
     vSites.emplace_back(Point(bdL - mDist, bdB - mDist),
                         vSites.size()); // dummy
     vSites.emplace_back(Point(bdL - mDist, bdT + mDist),
@@ -301,9 +301,12 @@ public:
       for (Edge e : vEdges) {
         e.s.Linf_to_L1();
         e.e.Linf_to_L1();
+        Line l(e.s, e.e);
         int ds = outDist(e.s);
         int de = outDist(e.e);
         if (ds > 0 && de > 0)
+          continue;
+        if (!e.length())
           continue;
         if (e.bHor()) {
           e.s.towardX(m, ds);
@@ -312,8 +315,47 @@ public:
           e.s.towardY(m, ds);
           e.e.towardY(m, de);
         } else {
-          e.s.toward(m, ds);
-          e.e.toward(m, de);
+          if (e.s.y > bdT) {
+            int d = e.s.y - bdT;
+            e.s.y -= d;
+            e.s.x -= l.dir() ? d : -d;
+          }
+          if (e.s.y < bdB) {
+            int d = bdB - e.s.y;
+            e.s.y += d;
+            e.s.x += l.dir() ? d : -d;
+          }
+          if (e.s.x > bdR) {
+            int d = e.s.x - bdR;
+            e.s.x -= d;
+            e.s.y -= l.dir() ? d : -d;
+          }
+          if (e.s.x < bdL) {
+            int d = bdL - e.s.x;
+            e.s.x += d;
+            e.s.y += l.dir() ? d : -d;
+          }
+
+          if (e.e.y > bdT) {
+            int d = e.e.y - bdT;
+            e.e.y -= d;
+            e.e.x -= l.dir() ? d : -d;
+          }
+          if (e.e.y < bdB) {
+            int d = bdB - e.e.y;
+            e.e.y += d;
+            e.e.x += l.dir() ? d : -d;
+          }
+          if (e.e.x > bdR) {
+            int d = e.e.x - bdR;
+            e.e.x -= d;
+            e.e.y -= l.dir() ? d : -d;
+          }
+          if (e.e.x < bdL) {
+            int d = bdL - e.e.x;
+            e.e.x += d;
+            e.e.y += l.dir() ? d : -d;
+          }
         }
         if (e.length())
           v.push_back(e);
@@ -404,7 +446,7 @@ public:
     vector<Edge> tmp = vEdges;
     vEdges.clear();
     for (Edge &e : tmp) {
-      if (!e.exist || e.top.id == -1 || e.bottom.id == -1)
+      if (!e.exist || e.top.id == -1 || e.bottom.id == -1 || e.length() == 0)
         continue;
       // cerr << "tran edge :" << e << endl;
 
@@ -531,7 +573,7 @@ public:
         x = max_x - d / 2;
     }
     Point p(x, y);
-    if ((!(p.dist(p1) == p.dist(p2))) || (!(p.dist(p1) == p.dist(p3)))) {
+    if (p.dist(p1) != p.dist(p2) || p.dist(p1) != p.dist(p3)) {
       cerr << "p1 " << p1 << endl;
       cerr << "p2 " << p2 << endl;
       cerr << "p3 " << p3 << endl;
@@ -564,6 +606,7 @@ public:
     d = max(d, bdB - p.y);
     return d;
   }
+
   int sX;
   vector<Site> vSites;
   set<Record> X;
