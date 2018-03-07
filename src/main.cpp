@@ -17,19 +17,6 @@ int main(int argc, char **argv) {
   srand(time(NULL));
   using namespace std;
 
-  // double l = -w, b = -w, r = w, t = w;
-  // vector<int> vx = {100, 50};
-  // vector<int> vy = {0, 0};
-
-  // for (int i = 0; i < 100; ++i) {
-  //  vx.push_back((double)w * abs(rand()) / RAND_MAX);
-  //  vy.push_back((double)w * abs(rand()) / RAND_MAX);
-  //}
-  // voronoi::Voronoi vor(vx, vy, l, b, r, t);
-  //  vor.getEdges();
-  // vor.checkVoronoi();
-  // return 0;
-
   std::cout << "voronois done!\n";
 
   glutInit(&argc, argv);            // Initialize GLUT
@@ -61,10 +48,10 @@ void drawVoronoi() {
   using namespace std;
   using namespace voronoi;
   srand(counter);
-  int w = 100;
+  int w = 1000;
   double l = 0, b = 0, r = w, t = w;
 
-  int n = 100;
+  int n = 1000;
   cerr << "counter " << counter++ << endl;
   vector<int> vx, vy, mx, my;
   vector<Point> sites;
@@ -139,7 +126,7 @@ void drawVoronoi() {
       int yBegin = ceil(it.second.yl);
       int yEnd = floor(it.second.yh);
       for (int y = yBegin; y <= yEnd; ++y) {
-        cerr << "check (" << x << " " << y << endl;
+        // cerr << "check (" << x << " " << y << endl;
         if (minDist[x][y] != abs(x - sites[it.second.siteId].x) +
                                  abs(y - sites[it.second.siteId].y)) {
           cerr << "check (" << x << " " << y << ") site ("
@@ -203,7 +190,6 @@ void onEF(int n) {
   glClear(GL_COLOR_BUFFER_BIT); // Clear the screen
   glClearColor(0.0f, 0.0f, 0.2f,
                1.0f); // Clear the background of our window to red
-
   drawVoronoi();
   glutSwapBuffers();
   std::cin.get();

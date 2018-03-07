@@ -612,7 +612,6 @@ public:
 
       int x = p.x + q.y - r.y;
       f.end = boundaryCenter(p, q, r, false);
-      // cerr << "f.end " << f.end << endl;
       f.record = true;
       f.recordPoint.x = x;
       f.recordPoint.y = p.y;
