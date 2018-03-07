@@ -16,20 +16,21 @@ int main(int argc, char **argv) {
 
   srand(time(NULL));
   using namespace std;
-  //
+
   // double l = -w, b = -w, r = w, t = w;
-  // vector<int> vx;
-  // vector<int> vy;
-  //
-  // for (int i = 0; i < 10000; ++i) {
+  // vector<int> vx = {100, 50};
+  // vector<int> vy = {0, 0};
+
+  // for (int i = 0; i < 100; ++i) {
   //  vx.push_back((double)w * abs(rand()) / RAND_MAX);
   //  vy.push_back((double)w * abs(rand()) / RAND_MAX);
   //}
   // voronoi::Voronoi vor(vx, vy, l, b, r, t);
+  //  vor.getEdges();
   // vor.checkVoronoi();
   // return 0;
-  //
-  // std::cout << "voronois done!\n";
+
+  std::cout << "voronois done!\n";
 
   glutInit(&argc, argv);            // Initialize GLUT
   glutInitDisplayMode(GLUT_SINGLE); // Set up a basic display buffer (only
@@ -55,20 +56,106 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+int counter = 180;
 void drawVoronoi() {
   using namespace std;
+  using namespace voronoi;
+  srand(counter);
+  int w = 100;
+  double l = 0, b = 0, r = w, t = w;
 
-  double l = -w, b = -w, r = w, t = w;
-  vector<int> vx;
-  vector<int> vy;
-
-  for (int i = 0; i < 100; ++i) {
-    vx.push_back(int(w * ((double)rand() / RAND_MAX - 0.5)) * 2);
-    vy.push_back(int(w * ((double)rand() / RAND_MAX - 0.5)) * 2);
-    // cerr << vx[i] << " " << vy[i] << endl;
+  int n = 100;
+  cerr << "counter " << counter++ << endl;
+  vector<int> vx, vy, mx, my;
+  vector<Point> sites;
+  for (int i = 0; i < n; ++i) {
+    vx.push_back(rand() % (w + 1));
+    vy.push_back(rand() % (w + 1));
+    if (vx.back() % 2)
+      ++vx.back();
+    if (vy.back() % 2)
+      ++vy.back();
+    // cerr << "site " << vx.back() << " " << vy.back() << endl;
+    sites.emplace_back(vx.back(), vy.back());
   }
 
-  voronoi::Voronoi vor(vx, vy, l, b, r, t);
+  Voronoi vor(vx, vy, 0, 0, w, w);
+  vector<vector<int>> minDist(w + 1);
+  for (int i = 0; i < w + 1; ++i) {
+    minDist[i].resize(w + 1, INT_MAX);
+    for (int j = 0; j < w + 1; ++j) {
+      Point p(i, j);
+      for (int s = 0; s < n; ++s)
+        minDist[i][j] =
+            min(abs(p.x - sites[s].x) + abs(p.y - sites[s].y), minDist[i][j]);
+    }
+  }
+
+  struct P {
+    P(int siteId) : yh(-1), yl(1000000), siteId(siteId) {}
+    bool operator==(const P &p) const {
+      return abs(yh - p.yh < 0.001) && siteId == p.siteId &&
+             abs(yl - p.yl < 0.001);
+    }
+    void setY(float y) {
+      yh = max(yh, y);
+      yl = min(yl, y);
+    }
+    float yh;
+    float yl;
+    const int siteId;
+  };
+
+  vector<map<int, P>> vm(w + 1);
+  vector<FEdge> vf = vor.getEdges();
+  for (const FEdge &e : vf) {
+    // cerr << "edge " << e.p1() << " " << e.p2() << " top:" << e.topSiteId()
+    //     << " bottom " << e.bottomSiteId() << endl;
+    for (int x = ceil(e.xl()); x <= floor(e.xh()); ++x) {
+      assert(x >= 0 && x <= w);
+      assert(x < vm.size());
+      if (e.bVer()) {
+        auto t = vm[x].emplace(e.topSiteId(), e.topSiteId());
+        t.first->second.setY(e.yh());
+        t.first->second.setY(e.yl());
+
+        auto b = vm[x].emplace(e.bottomSiteId(), e.bottomSiteId());
+        b.first->second.setY(e.yh());
+        b.first->second.setY(e.yl());
+      } else {
+        float y = e.getY(x);
+        auto t = vm[x].emplace(e.topSiteId(), e.topSiteId());
+        t.first->second.setY(y);
+
+        auto b = vm[x].emplace(e.bottomSiteId(), e.bottomSiteId());
+        b.first->second.setY(y);
+      }
+    }
+  }
+
+  for (int x = 0; x <= (int)w; ++x) {
+    auto &m = vm[x];
+    for (auto it : m) {
+      int yBegin = ceil(it.second.yl);
+      int yEnd = floor(it.second.yh);
+      for (int y = yBegin; y <= yEnd; ++y) {
+        cerr << "check (" << x << " " << y << endl;
+        if (minDist[x][y] != abs(x - sites[it.second.siteId].x) +
+                                 abs(y - sites[it.second.siteId].y)) {
+          cerr << "check (" << x << " " << y << ") site ("
+               << sites[it.second.siteId].x << ", " << sites[it.second.siteId].y
+               << ") minDist " << minDist[x][y] << endl;
+          cerr << "dist "
+               << abs(x - sites[it.second.siteId].x) +
+                      abs(y - sites[it.second.siteId].y)
+               << endl;
+        }
+
+        assert(minDist[x][y] == abs(x - sites[it.second.siteId].x) +
+                                    abs(y - sites[it.second.siteId].y));
+      }
+    }
+  }
 
   glBegin(GL_QUADS);
   for (unsigned i = 0; i < vx.size(); ++i) {
@@ -76,24 +163,23 @@ void drawVoronoi() {
     x /= w;
     double y = vy[i];
     y /= w;
-    glVertex2f(x - 5 / w, y - 5 / w);
-    glVertex2f(x + 5 / w, y - 5 / w);
-    glVertex2f(x + 5 / w, y + 5 / w);
-    glVertex2f(x - 5 / w, y + 5 / w);
+    glVertex2f(x - 1.0 / w, y - 1.0 / w);
+    glVertex2f(x + 1.0 / w, y - 1.0 / w);
+    glVertex2f(x + 1.0 / w, y + 1.0 / w);
+    glVertex2f(x - 1.0 / w, y + 1.0 / w);
   }
   glEnd();
 
   glBegin(GL_LINES);
-  for (voronoi::FEdge e : vor.getEdges()) {
-    e.p1().x();
+  for (voronoi::FEdge e : vf) {
     float x1 = e.p1().x();
     float y1 = e.p1().y();
     float x2 = e.p2().x();
     float y2 = e.p2().y();
-    assert(x1 >= l && x1 <= r);
-    assert(y1 >= l && y1 <= r);
-    assert(x2 >= l && x2 <= r);
-    assert(y2 >= l && y2 <= r);
+    // assert(x1 >= l && x1 <= r);
+    // assert(y1 >= l && y1 <= r);
+    // assert(x2 >= l && x2 <= r);
+    // assert(y2 >= l && y2 <= r);
     x1 /= w;
     y1 /= w;
     x2 /= w;

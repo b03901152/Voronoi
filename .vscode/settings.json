@@ -9,6 +9,9 @@
         "cmath": "cpp",
         "cstdlib": "cpp",
         "iosfwd": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "istream": "cpp",
+        "streambuf": "cpp",
+        "tuple": "cpp"
     }
 }
